@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoleFit – Rennrad Schuhfinder</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#0f172a;font-family:'Segoe UI',system-ui,sans-serif;color:#f1f5f9;display:flex;flex-direction:column}
+input,select,textarea,button{font-family:inherit}
+input[type=number]::-webkit-inner-spin-button{opacity:1}
+input[type=file]{display:none}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:#1e293b}
+::-webkit-scrollbar-thumb{background:#475569;border-radius:3px}
+.mono{font-family:'Cascadia Code','Fira Code','Courier New',monospace;font-variant-numeric:tabular-nums}
+@media print{
+  body{background:#fff;color:#000}
+  .no-print{display:none!important}
+}
+</style>
+</head>
+<body>
+<div id="root" style="display:flex;flex-direction:column;height:100%"></div>
+
+<script type="text/babel">
+const {useState,useMemo,useRef,useEffect,useCallback}=React;
+
+/* ── Farben ─────────────────────────────────────────── */
+const C={
+  bg:"#0f172a",s1:"#1e293b",s2:"#263548",s3:"#2d3f55",
+  bord:"#334155",bord2:"#475569",
+  txt:"#f1f5f9",mut:"#94a3b8",dim:"#64748b",
+  amber:"#f59e0b",amberDim:"#78350f",amberBg:"#1c1208",
+  green:"#22c55e",greenBg:"#0a1f0d",
+  blue:"#38bdf8",blueBg:"#0c1a2e",
+  orange:"#f97316",red:"#ef4444",
+};
+
+/* ── Datenbank-Initialwerte ─────────────────────────── */
+const DEFAULT_DB=[
+  {id:1,brand:"Lake",model:"CX333",widthLabel:"D – Normal",notes:"Custom-Fersenkappe; empfohlen bei schmaler Ferse",heatMoldable:false,
+   sizes:[{eu:"38",lMin:234,lMax:241,wMin:82,wMax:91},{eu:"39",lMin:241,lMax:248,wMin:83,wMax:92},{eu:"40",lMin:248,lMax:255,wMin:84,wMax:93},{eu:"41",lMin:255,lMax:262,wMin:85,wMax:94},{eu:"42",lMin:262,lMax:269,wMin:86,wMax:95},{eu:"43",lMin:269,lMax:276,wMin:87,wMax:96},{eu:"44",lMin:276,lMax:283,wMin:88,wMax:97},{eu:"45",lMin:283,lMax:290,wMin:89,wMax:98},{eu:"46",lMin:290,lMax:297,wMin:90,wMax:99},{eu:"47",lMin:297,lMax:304,wMin:91,wMax:100}]},
+  {id:2,brand:"Lake",model:"CX333",widthLabel:"2E – Weit",notes:"Für breiten Vorfuß (+6 mm gegenüber D)",heatMoldable:false,
+   sizes:[{eu:"38",lMin:234,lMax:241,wMin:89,wMax:98},{eu:"39",lMin:241,lMax:248,wMin:90,wMax:99},{eu:"40",lMin:248,lMax:255,wMin:91,wMax:100},{eu:"41",lMin:255,lMax:262,wMin:92,wMax:101},{eu:"42",lMin:262,lMax:269,wMin:93,wMax:102},{eu:"43",lMin:269,lMax:276,wMin:94,wMax:103},{eu:"44",lMin:276,lMax:283,wMin:95,wMax:104},{eu:"45",lMin:283,lMax:290,wMin:96,wMax:105},{eu:"46",lMin:290,lMax:297,wMin:97,wMax:106}]},
+  {id:3,brand:"Lake",model:"CX333",widthLabel:"4E – Extra Weit",notes:"Für sehr breiten Vorfuß (+12 mm gegenüber D)",heatMoldable:false,
+   sizes:[{eu:"40",lMin:248,lMax:255,wMin:97,wMax:108},{eu:"41",lMin:255,lMax:262,wMin:98,wMax:109},{eu:"42",lMin:262,lMax:269,wMin:99,wMax:110},{eu:"43",lMin:269,lMax:276,wMin:100,wMax:111},{eu:"44",lMin:276,lMax:283,wMin:101,wMax:112},{eu:"45",lMin:283,lMax:290,wMin:102,wMax:113}]},
+  {id:4,brand:"Shimano",model:"RC702",widthLabel:"Normal",notes:"Steife Carbon-Sohle; eher schmaler Leisten im Zehenbereich",heatMoldable:false,
+   sizes:[{eu:"38",lMin:236,lMax:243,wMin:82,wMax:90},{eu:"39",lMin:243,lMax:250,wMin:83,wMax:91},{eu:"40",lMin:250,lMax:257,wMin:84,wMax:92},{eu:"41",lMin:257,lMax:264,wMin:85,wMax:93},{eu:"42",lMin:264,lMax:271,wMin:86,wMax:94},{eu:"43",lMin:271,lMax:278,wMin:87,wMax:95},{eu:"44",lMin:278,lMax:285,wMin:88,wMax:96},{eu:"45",lMin:285,lMax:292,wMin:89,wMax:97},{eu:"46",lMin:292,lMax:299,wMin:90,wMax:98},{eu:"47",lMin:299,lMax:306,wMin:91,wMax:99}]},
+  {id:5,brand:"Shimano",model:"RC702",widthLabel:"Weit (Wide)",notes:"+4 mm im Vorfußbereich; nicht in allen Größen verfügbar",heatMoldable:false,
+   sizes:[{eu:"40",lMin:250,lMax:257,wMin:91,wMax:100},{eu:"41",lMin:257,lMax:264,wMin:92,wMax:101},{eu:"42",lMin:264,lMax:271,wMin:93,wMax:102},{eu:"43",lMin:271,lMax:278,wMin:94,wMax:103},{eu:"44",lMin:278,lMax:285,wMin:95,wMax:104},{eu:"45",lMin:285,lMax:292,wMin:96,wMax:105},{eu:"46",lMin:292,lMax:299,wMin:97,wMax:106}]},
+  {id:6,brand:"Bont",model:"Vaypor",widthLabel:"Normal (breiter Leisten)",notes:"Thermoverformbar zu Hause; Leisten ab Werk breiter als Standard",heatMoldable:true,
+   sizes:[{eu:"37",lMin:228,lMax:237,wMin:85,wMax:96},{eu:"38",lMin:237,lMax:244,wMin:86,wMax:97},{eu:"39",lMin:244,lMax:251,wMin:87,wMax:98},{eu:"40",lMin:251,lMax:258,wMin:88,wMax:99},{eu:"41",lMin:258,lMax:265,wMin:89,wMax:100},{eu:"42",lMin:265,lMax:272,wMin:90,wMax:101},{eu:"43",lMin:272,lMax:279,wMin:91,wMax:102},{eu:"44",lMin:279,lMax:286,wMin:92,wMax:103},{eu:"45",lMin:286,lMax:293,wMin:93,wMax:104},{eu:"46",lMin:293,lMax:300,wMin:94,wMax:105}]},
+  {id:7,brand:"Giro",model:"Regime",widthLabel:"Normal",notes:"Großzügiger Zehenbox; läuft leicht größer als Shimano",heatMoldable:false,
+   sizes:[{eu:"38.5",lMin:236,lMax:244,wMin:83,wMax:92},{eu:"40",lMin:248,lMax:256,wMin:84,wMax:93},{eu:"41",lMin:256,lMax:264,wMin:85,wMax:94},{eu:"42",lMin:264,lMax:272,wMin:86,wMax:95},{eu:"43",lMin:272,lMax:280,wMin:87,wMax:96},{eu:"44",lMin:280,lMax:288,wMin:88,wMax:97},{eu:"45",lMin:288,lMax:296,wMin:89,wMax:98},{eu:"46",lMin:296,lMax:304,wMin:90,wMax:99}]},
+  {id:8,brand:"Sidi",model:"Wire 2 Carbon",widthLabel:"Normal",notes:"Ital. Leisten; tendenziell schmal. Mega-Version für breite Füße verfügbar",heatMoldable:false,
+   sizes:[{eu:"39",lMin:240,lMax:248,wMin:82,wMax:90},{eu:"40",lMin:248,lMax:256,wMin:83,wMax:91},{eu:"41",lMin:256,lMax:264,wMin:84,wMax:92},{eu:"42",lMin:264,lMax:272,wMin:85,wMax:93},{eu:"43",lMin:272,lMax:280,wMin:86,wMax:94},{eu:"44",lMin:280,lMax:288,wMin:87,wMax:95},{eu:"45",lMin:288,lMax:296,wMin:88,wMax:96},{eu:"46",lMin:296,lMax:304,wMin:89,wMax:97}]},
+  {id:9,brand:"Fizik",model:"Infinito R1",widthLabel:"Normal (schmal)",notes:"Schmaler ital. Leisten; in Halbgrößen bis 43.5 verfügbar",heatMoldable:false,
+   sizes:[{eu:"39",lMin:239,lMax:247,wMin:81,wMax:89},{eu:"39.5",lMin:243,lMax:251,wMin:81,wMax:89},{eu:"40",lMin:247,lMax:255,wMin:82,wMax:90},{eu:"40.5",lMin:251,lMax:259,wMin:82,wMax:90},{eu:"41",lMin:255,lMax:263,wMin:83,wMax:91},{eu:"41.5",lMin:259,lMax:267,wMin:83,wMax:91},{eu:"42",lMin:263,lMax:271,wMin:84,wMax:92},{eu:"42.5",lMin:267,lMax:275,wMin:84,wMax:92},{eu:"43",lMin:271,lMax:279,wMin:85,wMax:93},{eu:"43.5",lMin:275,lMax:283,wMin:85,wMax:93},{eu:"44",lMin:279,lMax:287,wMin:86,wMax:94},{eu:"45",lMin:287,lMax:295,wMin:87,wMax:95},{eu:"46",lMin:295,lMax:303,wMin:88,wMax:96}]},
+  {id:10,brand:"Fizik",model:"Vento Infinito Carbon 2",widthLabel:"Wide",notes:"Breitere Variante (+4 mm) für weiten Vorfuß; BOA-Verschluss",heatMoldable:false,
+   sizes:[{eu:"38",lMin:235,lMax:243,wMin:86,wMax:96},{eu:"39",lMin:243,lMax:251,wMin:87,wMax:97},{eu:"40",lMin:251,lMax:259,wMin:88,wMax:98},{eu:"41",lMin:259,lMax:267,wMin:89,wMax:99},{eu:"42",lMin:267,lMax:275,wMin:90,wMax:100},{eu:"43",lMin:275,lMax:283,wMin:91,wMax:101},{eu:"44",lMin:283,lMax:291,wMin:92,wMax:102},{eu:"45",lMin:291,lMax:299,wMin:93,wMax:103},{eu:"46",lMin:299,lMax:307,wMin:94,wMax:104}]},
+  {id:11,brand:"Northwave",model:"Extreme Pro 3",widthLabel:"Normal (breiter Zehenbox)",notes:"Großzügiger Zehenbox; ital. Hersteller mit breiterem Vorfuß als Sidi/Fizik",heatMoldable:false,
+   sizes:[{eu:"38",lMin:236,lMax:244,wMin:84,wMax:93},{eu:"39",lMin:244,lMax:252,wMin:85,wMax:94},{eu:"40",lMin:252,lMax:260,wMin:86,wMax:95},{eu:"41",lMin:260,lMax:268,wMin:87,wMax:96},{eu:"42",lMin:268,lMax:276,wMin:88,wMax:97},{eu:"43",lMin:276,lMax:284,wMin:89,wMax:98},{eu:"44",lMin:284,lMax:292,wMin:90,wMax:99},{eu:"45",lMin:292,lMax:300,wMin:91,wMax:100},{eu:"46",lMin:300,lMax:308,wMin:92,wMax:101},{eu:"48",lMin:308,lMax:316,wMin:93,wMax:102}]},
+  {id:12,brand:"Specialized",model:"S-Works Torch",widthLabel:"Normal",notes:"Leicht schmaler Leisten; läuft knapp wahre Größe",heatMoldable:false,
+   sizes:[{eu:"38",lMin:235,lMax:242,wMin:82,wMax:90},{eu:"39",lMin:242,lMax:249,wMin:83,wMax:91},{eu:"40",lMin:249,lMax:256,wMin:84,wMax:92},{eu:"41",lMin:256,lMax:263,wMin:85,wMax:93},{eu:"42",lMin:263,lMax:270,wMin:86,wMax:94},{eu:"43",lMin:270,lMax:277,wMin:87,wMax:95},{eu:"44",lMin:277,lMax:284,wMin:88,wMax:96},{eu:"45",lMin:284,lMax:291,wMin:89,wMax:97},{eu:"46",lMin:291,lMax:298,wMin:90,wMax:98},{eu:"47",lMin:298,lMax:305,wMin:91,wMax:99}]},
+];
+
+/* ── Match-Algorithmus ──────────────────────────────── */
+function calcMatch(entry,size,fl,fw){
+  const inL=fl>=size.lMin&&fl<=size.lMax;
+  const nearL=!inL&&fl>=size.lMin-5&&fl<=size.lMax+5;
+  if(!inL&&!nearL)return null;
+  const lMid=(size.lMin+size.lMax)/2,lHalf=(size.lMax-size.lMin)/2;
+  const lScore=inL?100-Math.round(Math.abs(fl-lMid)/lHalf*28):40;
+  const lPos=(fl-size.lMin)/(size.lMax-size.lMin); // 0..1 position within range
+
+  if(!fw||size.wMin==null)return{score:lScore,lSt:inL?"ok":"border",wSt:"none",lPos};
+  const inW=fw>=size.wMin&&fw<=size.wMax;
+  const nearW=!inW&&fw>=size.wMin-3&&fw<=size.wMax+3;
+  if(!inW&&!nearW)return null;
+  const wMid=(size.wMin+size.wMax)/2,wHalf=(size.wMax-size.wMin)/2;
+  const wScore=inW?100-Math.round(Math.abs(fw-wMid)/wHalf*28):40;
+  return{score:Math.round((lScore+wScore)/2),lSt:inL?"ok":"border",wSt:inW?"ok":"border",lPos};
+}
+
+function findMatches(db,m){
+  const fl=parseFloat(m.footLength);
+  if(!fl||fl<180||fl>360)return[];
+  const fw=parseFloat(m.footWidth)||null;
+  return db.flatMap(e=>e.sizes.map(sz=>{
+    const r=calcMatch(e,sz,fl,fw);
+    return r?{...r,entry:e,size:sz}:null;
+  }).filter(Boolean)).sort((a,b)=>b.score-a.score);
+}
+
+/* ── Kleine Hilfskomponenten ───────────────────────── */
+function Pill({children,bg=C.s3,col=C.txt}){
+  return <span style={{fontSize:10,fontWeight:700,letterSpacing:"0.07em",padding:"2px 8px",borderRadius:99,background:bg,color:col,display:"inline-block",textTransform:"uppercase",whiteSpace:"nowrap"}}>{children}</span>;
+}
+
+function Dot({st}){
+  const c=st==="ok"?C.green:st==="border"?C.amber:st==="none"?C.bord:C.red;
+  return <span style={{width:8,height:8,borderRadius:"50%",background:c,display:"inline-block",marginRight:5,flexShrink:0}}/>;
+}
+
+function ScoreBar({score,pos}){
+  const c=score>=82?C.green:score>=65?C.amber:score>=45?C.orange:C.red;
+  return <div style={{height:5,borderRadius:3,background:C.bord,overflow:"visible",width:"100%",position:"relative"}}>
+    <div style={{height:"100%",width:Math.max(score,2)+"%",background:c,transition:"width 0.5s cubic-bezier(.4,0,.2,1)",borderRadius:3}}/>
+  </div>;
+}
+
+function PositionGauge({lPos}){
+  const pct=Math.min(Math.max((lPos??0.5)*100,0),100);
+  return <div style={{position:"relative",height:20,marginTop:4}}>
+    <div style={{position:"absolute",top:8,left:0,right:0,height:3,background:C.bord,borderRadius:2}}>
+      <div style={{position:"absolute",left:"20%",right:"20%",top:0,height:"100%",background:C.s3,borderRadius:2}}/>
+    </div>
+    <div style={{position:"absolute",top:4,left:`calc(${pct}% - 5px)`,width:10,height:10,borderRadius:"50%",background:pct<15||pct>85?C.amber:C.green,border:`2px solid ${C.bg}`,transition:"left 0.4s"}}/>
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.dim,marginTop:15}}>
+      <span>min</span><span style={{color:C.green}}>optimal</span><span>max</span>
+    </div>
+  </div>;
+}
+
+function Input({label,unit,hint,style:sx,...props}){
+  return <div style={{marginBottom:18,...sx}}>
+    <div style={{fontSize:11,fontWeight:700,color:C.mut,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <span>{label}</span>
+      {hint&&<span style={{fontWeight:400,color:C.dim,textTransform:"none",letterSpacing:"normal",fontSize:11}}>{hint}</span>}
+    </div>
+    <div style={{display:"flex",alignItems:"center",background:C.s2,border:`1px solid ${C.bord}`,borderRadius:8,overflow:"hidden",transition:"border-color 0.15s"}} onFocus={e=>e.currentTarget.style.borderColor=C.amber} onBlur={e=>e.currentTarget.style.borderColor=C.bord}>
+      <input {...props} style={{flex:1,background:"none",border:"none",outline:"none",color:C.txt,padding:"11px 14px",fontSize:16,fontFamily:"inherit"}} className="mono"/>
+      {unit&&<span style={{padding:"0 14px",color:C.mut,fontSize:13,borderLeft:`1px solid ${C.bord}`,flexShrink:0}}>{unit}</span>}
+    </div>
+  </div>;
+}
+
+function SegPicker({label,options,value,onChange}){
+  return <div style={{marginBottom:18}}>
+    <div style={{fontSize:11,fontWeight:700,color:C.mut,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>{label}</div>
+    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+      {options.map(o=>{const sel=value===o.v;return <button key={o.v} onClick={()=>onChange(sel?"":o.v)}
+        style={{padding:"8px 16px",borderRadius:6,border:`1px solid ${sel?C.amber:C.bord}`,background:sel?C.amberDim:"none",color:sel?C.amber:C.mut,cursor:"pointer",fontSize:13,fontWeight:sel?700:400,transition:"all 0.15s"}}>
+        {o.l}
+      </button>;})}
+    </div>
+  </div>;
+}
+
+/* ── TAB: Messen ─────────────────────────────────────── */
+function MeasureView({m,setM,onSearch}){
+  const fl=parseFloat(m.footLength);
+  const fw=parseFloat(m.footWidth);
+  const arch=parseFloat(m.archLength);
+  const cleatOffset=fl&&arch?Math.round(fl-arch):null;
+
+  return <div style={{padding:24,maxWidth:580}}>
+    <div style={{marginBottom:24,padding:14,background:C.amberBg,borderRadius:10,border:`1px solid ${C.amberDim}`,borderLeft:`3px solid ${C.amber}`,display:"flex",gap:12,alignItems:"flex-start"}}>
+      <span style={{fontSize:20,flexShrink:0}}>📐</span>
+      <div style={{fontSize:13,color:C.mut,lineHeight:1.6}}>
+        <strong style={{color:C.amber,fontWeight:700}}>Messtipp:</strong> Füße abends messen – tagsüber schwellen sie an. Beide Füße messen, den <em>größeren</em> Wert verwenden. Barfuß oder mit den Radsocken die du tragen wirst.
+      </div>
+    </div>
+
+    <Input label="Fußlänge" unit="mm" hint="Pflichtfeld" type="number" placeholder="z.B. 272" value={m.footLength} onChange={e=>setM({...m,footLength:e.target.value})}/>
+    <Input label="Fußbreite" unit="mm" hint="Pflichtfeld" type="number" placeholder="z.B. 92" value={m.footWidth} onChange={e=>setM({...m,footWidth:e.target.value})}/>
+    <Input label="Ballenabstand" unit="mm" hint="optional – Ferse bis Großzehengrundgelenk" type="number" placeholder="z.B. 195" value={m.archLength} onChange={e=>setM({...m,archLength:e.target.value})}/>
+
+    {cleatOffset!==null&&<div style={{marginBottom:18,padding:12,background:C.blueBg,border:`1px solid #1e3a5f`,borderRadius:8,fontSize:12,color:C.blue}}>
+      <strong>Cleat-Hinweis:</strong> Differenz Fußlänge−Ballenabstand = <span className="mono" style={{fontWeight:700}}>{cleatOffset} mm</span>. Bei positiver Differenz ({'>'}0) Cleat leicht Richtung Ferse verschieben, um den Ball über dem Pedal zu zentrieren.
+    </div>}
+
+    <SegPicker label="Spannhöhe / Fußvolumen" value={m.instep} onChange={v=>setM({...m,instep:v})}
+      options={[{v:"low",l:"Niedrig"},{v:"normal",l:"Normal"},{v:"hoch",l:"Hoch"}]}/>
+    <SegPicker label="Fersenform" value={m.heel} onChange={v=>setM({...m,heel:v})}
+      options={[{v:"narrow",l:"Schmal"},{v:"normal",l:"Normal"},{v:"wide",l:"Weit"}]}/>
+
+    {m.instep==="hoch"&&<div style={{marginBottom:18,padding:12,background:"#1c1310",border:`1px solid ${C.orange}`,borderRadius:8,fontSize:12,color:C.orange,lineHeight:1.5}}>
+      <strong>Hohe Spannung:</strong> BOA-Drehverschluss oder mehrere Klettzüge empfehlenswert. Auf ausreichend Ristvolumen im Schuh achten – Bont Vaypor und Lake CX333 passen hier oft besser.
+    </div>}
+    {m.heel==="narrow"&&<div style={{marginBottom:18,padding:12,background:C.blueBg,border:`1px solid #1e3a5f`,borderRadius:8,fontSize:12,color:C.blue,lineHeight:1.5}}>
+      <strong>Schmale Ferse:</strong> Lake CX333 bietet eine anpassbare Custom-Fersenkappe – in allen Weiten. Besonders empfehlenswert bei schlecht sitzendem Fersenbereich.
+    </div>}
+
+    <button onClick={onSearch} disabled={!m.footLength||!m.footWidth}
+      style={{width:"100%",padding:"15px",background:m.footLength&&m.footWidth?C.amber:"#334155",color:m.footLength&&m.footWidth?"#000":C.mut,border:"none",borderRadius:9,fontSize:15,fontWeight:800,cursor:m.footLength&&m.footWidth?"pointer":"not-allowed",letterSpacing:"0.04em",transition:"all 0.2s",marginTop:4}}>
+      Passende Schuhe finden →
+    </button>
+  </div>;
+}
+
+/* ── TAB: Ergebnisse ─────────────────────────────────── */
+function ResultCard({r,hasFw}){
+  const [open,setOpen]=useState(false);
+  const {entry:e,size:s,score,lSt,wSt,lPos}=r;
+  const scoreColor=score>=82?C.green:score>=65?C.amber:score>=45?C.orange:C.red;
+  const scoreLabel=score>=82?"Sehr gut":score>=65?"Gut":score>=45?"Grenzwertig":"Knapp";
+  return <div style={{background:C.s1,borderRadius:10,border:`1px solid ${open?C.amber:C.bord}`,marginBottom:10,overflow:"hidden",transition:"border-color 0.2s"}}>
+    <div onClick={()=>setOpen(o=>!o)} style={{padding:"14px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
+          <span style={{fontWeight:800,fontSize:16}}>{e.brand}</span>
+          <span style={{color:C.mut,fontSize:14}}>{e.model}</span>
+          <Pill bg="#1e3a5f" col={C.blue}>{e.widthLabel}</Pill>
+          {e.heatMoldable&&<Pill bg={C.greenBg} col={C.green}>Thermo</Pill>}
+          {lSt==="border"&&<Pill bg={C.amberBg} col={C.amber}>Grenzwert</Pill>}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <span className="mono" style={{fontSize:22,fontWeight:800,color:C.amber,flexShrink:0}}>EU {s.eu}</span>
+          <div style={{flex:1}}>
+            <ScoreBar score={score}/>
+            <div style={{fontSize:11,color:scoreColor,marginTop:3,fontWeight:700,letterSpacing:"0.03em"}}>{scoreLabel} – {score}%</div>
+          </div>
+        </div>
+      </div>
+      <div style={{color:C.mut,fontSize:18,transform:open?"rotate(90deg)":"",transition:"transform 0.2s",flexShrink:0}}>›</div>
+    </div>
+
+    {open&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.bord}`}}>
+      <div style={{paddingTop:14,display:"grid",gap:12}}>
+        <div>
+          <div style={{fontSize:11,color:C.dim,marginBottom:6,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Position im Längenbereich</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:2}}>
+            <Dot st={lSt}/>
+            <span className="mono" style={{fontSize:13,color:C.mut}}>{s.lMin}–{s.lMax} mm</span>
+            {lSt==="border"&&<span style={{fontSize:11,color:C.amber}}>(außerhalb, Grenzwert)</span>}
+          </div>
+          <PositionGauge lPos={lPos}/>
+        </div>
+
+        {hasFw&&<div>
+          <div style={{fontSize:11,color:C.dim,marginBottom:4,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>Breite</div>
+          {s.wMin!=null?<div style={{display:"flex",alignItems:"center",gap:6}}>
+            <Dot st={wSt}/>
+            <span className="mono" style={{fontSize:13,color:C.mut}}>{s.wMin}–{s.wMax} mm</span>
+            {wSt==="border"&&<span style={{fontSize:11,color:C.amber}}>(Grenzwert)</span>}
+          </div>:<span style={{fontSize:12,color:C.dim}}>Keine Breitendaten verfügbar</span>}
+        </div>}
+
+        {e.notes&&<div style={{fontSize:12,color:"#7dd3fc",padding:"9px 12px",background:C.blueBg,borderRadius:7,lineHeight:1.5}}>
+          {e.notes}
+        </div>}
+        <a href={"https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q="+encodeURIComponent(e.brand+" "+e.model+" "+s.eu)} target="_blank" rel="noopener noreferrer"
+          style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:4,padding:"7px 14px",background:"#0f2010",border:"1px solid #1a4a20",borderRadius:7,color:"#4ade80",fontSize:12,fontWeight:700,textDecoration:"none",letterSpacing:"0.03em"}}>
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="8" r="5"/><path d="m14 14 4 4"/></svg>
+          Preisvergleich auf Idealo
+        </a>
+      </div>
+    </div>}
+  </div>;
+}
+
+function ResultsView({matches,m,allBrands,onBack}){
+  const [brandFilter,setBrandFilter]=useState([]);
+  const fl=parseFloat(m.footLength);
+  const fw=parseFloat(m.footWidth)||null;
+
+  const filtered=matches.filter(r=>brandFilter.length===0||brandFilter.includes(r.entry.brand));
+
+  const toggleBrand=b=>setBrandFilter(f=>f.includes(b)?f.filter(x=>x!==b):[...f,b]);
+
+  if(!fl)return <div style={{padding:40,textAlign:"center",color:C.mut}}>
+    <div style={{fontSize:48,marginBottom:12}}>📏</div>
+    <p style={{marginBottom:20}}>Noch keine Maße eingegeben.</p>
+    <button onClick={onBack} style={{padding:"11px 22px",background:C.amber,color:"#000",border:"none",borderRadius:8,cursor:"pointer",fontWeight:800,fontSize:14}}>Jetzt messen →</button>
+  </div>;
+
+  return <div style={{padding:24}}>
+    <div style={{marginBottom:16,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+      <div>
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:4}}>
+          <span><span style={{color:C.dim,fontSize:13}}>Länge: </span><span className="mono" style={{fontWeight:800,color:C.amber}}>{fl} mm</span></span>
+          {fw&&<span><span style={{color:C.dim,fontSize:13}}>Breite: </span><span className="mono" style={{fontWeight:800,color:C.amber}}>{fw} mm</span></span>}
+          {m.archLength&&<span><span style={{color:C.dim,fontSize:13}}>Ballen: </span><span className="mono" style={{fontWeight:800,color:C.blue}}>{m.archLength} mm</span></span>}
+        </div>
+        <div style={{fontSize:12,color:C.dim}}>{filtered.length} von {matches.length} Treffern</div>
+      </div>
+    </div>
+
+    {allBrands.length>1&&<div style={{marginBottom:16,display:"flex",gap:6,flexWrap:"wrap"}}>
+      <span style={{fontSize:11,color:C.dim,alignSelf:"center",marginRight:2}}>Marke:</span>
+      {allBrands.map(b=>{const sel=brandFilter.includes(b);return <button key={b} onClick={()=>toggleBrand(b)}
+        style={{padding:"5px 12px",borderRadius:99,border:`1px solid ${sel?C.amber:C.bord}`,background:sel?C.amberDim:"none",color:sel?C.amber:C.mut,cursor:"pointer",fontSize:12,fontWeight:sel?700:400,transition:"all 0.15s"}}>
+        {b}
+      </button>;})}
+      {brandFilter.length>0&&<button onClick={()=>setBrandFilter([])} style={{padding:"5px 10px",borderRadius:99,border:`1px solid ${C.bord}`,background:"none",color:C.dim,cursor:"pointer",fontSize:12}}>✕ Reset</button>}
+    </div>}
+
+    {filtered.length===0?<div style={{padding:32,textAlign:"center",color:C.mut,background:C.s1,borderRadius:10}}>
+      Keine Treffer mit diesen Filtern. Maße prüfen oder Filter zurücksetzen.
+    </div>:filtered.map((r)=><ResultCard key={r.entry.id+"-"+r.size.eu} r={r} hasFw={!!fw}/>)}
+
+    <div style={{marginTop:20,padding:12,background:C.s1,borderRadius:8,fontSize:11,color:C.dim,lineHeight:1.7}}>
+      ⚠ Alle Werte sind Richtwerte auf Basis öffentlicher Herstellerangaben. Hersteller-Daten können abweichen. Vor dem Kauf unbedingt mit der aktuellen offiziellen Größentabelle gegenchecken und – wenn möglich – anprobieren.
+    </div>
+  </div>;
+}
+
+/* ── TAB: Anleitung ──────────────────────────────────── */
+function GuideView(){
+  return <div style={{padding:24,maxWidth:600}}>
+    <p style={{color:C.mut,fontSize:14,lineHeight:1.7,marginBottom:24}}>
+      Rennradschuhe sitzen enger als Alltagsschuhe – kein Spielraum wie beim Laufschuh nötig. Die <strong style={{color:C.txt}}>Breite ist oft entscheidender als die Länge</strong>, weil ein zu schmaler Schuh Druckstellen am Vorfuß erzeugt.
+    </p>
+
+    <svg viewBox="0 0 340 200" style={{width:"100%",maxWidth:340,display:"block",margin:"0 auto 28px",background:C.s1,borderRadius:12,padding:8}}>
+      {/* Fuß-Silhouette */}
+      <path d="M 80 170 C 60 165 50 140 55 110 C 58 85 65 65 80 55 C 90 48 100 45 115 50 C 125 42 130 40 140 44 C 148 38 153 36 162 40 C 170 35 174 33 182 37 C 188 32 192 32 198 38 C 205 44 202 60 195 65 C 210 70 215 90 210 115 C 206 135 195 155 180 165 C 165 172 145 175 120 175 C 105 175 88 173 80 170 Z"
+        fill={C.s2} stroke={C.bord2} strokeWidth="1.5"/>
+      {/* Fußlänge – horizontale Linie */}
+      <line x1="52" y1="145" x2="212" y2="145" stroke={C.amber} strokeWidth="1.5" strokeDasharray="4 3"/>
+      <line x1="52" y1="138" x2="52" y2="152" stroke={C.amber} strokeWidth="1.5"/>
+      <line x1="212" y1="138" x2="212" y2="152" stroke={C.amber} strokeWidth="1.5"/>
+      <text x="132" y="160" fill={C.amber} fontSize="10" textAnchor="middle" fontWeight="700">Fußlänge</text>
+      {/* Fußbreite – vertikale Linie */}
+      <line x1="82" y1="115" x2="207" y2="115" stroke={C.blue} strokeWidth="1.5" strokeDasharray="4 3"/>
+      <line x1="82" y1="108" x2="82" y2="122" stroke={C.blue} strokeWidth="1.5"/>
+      <line x1="207" y1="108" x2="207" y2="122" stroke={C.blue} strokeWidth="1.5"/>
+      <text x="144" y="106" fill={C.blue} fontSize="10" textAnchor="middle" fontWeight="700">Fußbreite</text>
+      {/* Ballenabstand */}
+      <circle cx="105" cy="82" r="5" fill="none" stroke={C.green} strokeWidth="1.5"/>
+      <line x1="52" y1="82" x2="100" y2="82" stroke={C.green} strokeWidth="1.5" strokeDasharray="3 2"/>
+      <text x="76" y="75" fill={C.green} fontSize="9" textAnchor="middle" fontWeight="700">Ballen</text>
+      {/* Legende */}
+      <rect x="225" y="60" width="110" height="80" rx="6" fill={C.s2} stroke={C.bord}/>
+      <line x1="232" y1="76" x2="252" y2="76" stroke={C.amber} strokeWidth="1.5" strokeDasharray="3 2"/>
+      <text x="258" y="80" fill={C.amber} fontSize="9">Fußlänge</text>
+      <line x1="232" y1="96" x2="252" y2="96" stroke={C.blue} strokeWidth="1.5" strokeDasharray="3 2"/>
+      <text x="258" y="100" fill={C.blue} fontSize="9">Fußbreite</text>
+      <circle cx="242" cy="116" r="4" fill="none" stroke={C.green} strokeWidth="1.5"/>
+      <text x="258" y="120" fill={C.green} fontSize="9">Ballenabstand</text>
+    </svg>
+
+    {[
+      {n:"1",t:"Fußlänge messen",c:"Stell dich auf ein Blatt Papier gegen eine Wand. Markiere Ferse (an der Wand) und die Spitze des längsten Zehs. Miss die Distanz in mm.",col:C.amber},
+      {n:"2",t:"Fußbreite messen",c:"Miss quer über den Fuß an der breitesten Stelle – das sind die Metatarsalköpfe (Ballen, wo der Vorfuß am breitesten ist). In mm messen.",col:C.blue},
+      {n:"3",t:"Ballenabstand messen",c:"Ertaste das Großzehengrundgelenk (erster Metatarsalkopf, Innenseite). Miss von der Ferse bis zu diesem Punkt. Wichtig für die Cleat-Positionierung.",col:C.green},
+      {n:"4",t:"Ergebnisse nutzen",c:"Gib beide Hauptmaße ein. Je mehr Parameter du angibst, desto präziser wird die Passung. Die Passform-Anzeige zeigt, wo du im Größenbereich liegst.",col:C.mut},
+    ].map(({n,t,c,col})=>
+      <div key={n} style={{display:"flex",gap:16,marginBottom:20,alignItems:"flex-start"}}>
+        <div style={{width:30,height:30,borderRadius:"50%",background:col==="#94a3b8"?C.s2:col+"22",border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:col,flexShrink:0}}>{n}</div>
+        <div>
+          <div style={{fontWeight:700,marginBottom:4,color:C.txt}}>{t}</div>
+          <div style={{fontSize:13,color:C.mut,lineHeight:1.6}}>{c}</div>
+        </div>
+      </div>
+    )}
+
+    <div style={{padding:16,background:C.s1,borderRadius:10,border:`1px solid ${C.bord}`,marginTop:8}}>
+      <div style={{fontWeight:700,marginBottom:8,fontSize:13}}>Breiten-Orientierung (Vorfuß in mm)</div>
+      {[["Schmal","< 86",C.blue],["Normal","86–95",C.green],["Breit","95–104",C.amber],["Sehr breit","> 104",C.orange]].map(([l,r,col])=>
+        <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:`1px solid ${C.bord}`,fontSize:13}}>
+          <span style={{color:C.mut}}>{l}</span>
+          <span className="mono" style={{color:col,fontWeight:700}}>{r}</span>
+        </div>
+      )}
+    </div>
+  </div>;
+}
+
+/* ── TAB: Datenbank ──────────────────────────────────── */
+const EMPTY_ENTRY={brand:"",model:"",widthLabel:"Normal",notes:"",heatMoldable:false,
+  sizes:[{eu:"40",lMin:250,lMax:257,wMin:84,wMax:93},{eu:"41",lMin:257,lMax:264,wMin:85,wMax:94},{eu:"42",lMin:264,lMax:271,wMin:86,wMax:95},{eu:"43",lMin:271,lMax:278,wMin:87,wMax:96},{eu:"44",lMin:278,lMax:285,wMin:88,wMax:97},{eu:"45",lMin:285,lMax:292,wMin:89,wMax:98}]};
+
+function EntryForm({entry,onSave,onCancel}){
+  const [e,setE]=useState({...entry,sizes:entry.sizes.map(s=>({...s}))});
+  const setF=(k,v)=>setE(p=>({...p,[k]:v}));
+  const setS=(i,k,v)=>{const sz=[...e.sizes];sz[i]={...sz[i],[k]:v===""?null:isNaN(+v)?v:+v};setE(p=>({...p,sizes:sz}));};
+  const addRow=()=>setE(p=>({...p,sizes:[...p.sizes,{eu:"",lMin:0,lMax:0,wMin:null,wMax:null}]}));
+  const delRow=i=>setE(p=>({...p,sizes:p.sizes.filter((_,j)=>j!==i)}));
+  const valid=e.brand&&e.model&&e.sizes.length>0;
+
+  const fieldStyle={width:"100%",background:C.s1,border:`1px solid ${C.bord}`,borderRadius:6,padding:"8px 10px",color:C.txt,fontSize:14,outline:"none",fontFamily:"inherit"};
+  const cellStyle={background:C.s1,border:`1px solid ${C.bord}`,borderRadius:4,padding:"5px 7px",color:C.txt,fontSize:12,outline:"none",fontFamily:"monospace",fontVariantNumeric:"tabular-nums"};
+
+  return <div style={{background:C.s2,border:`1px solid ${C.amber}`,borderRadius:12,padding:22,marginBottom:16}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+      {[["Marke *","brand",false],["Modell *","model",false],["Weite / Variante","widthLabel",false],["Hinweise","notes",true]].map(([l,k,full])=>
+        <div key={k} style={{gridColumn:full?"1/-1":"auto"}}>
+          <div style={{fontSize:11,color:C.mut,marginBottom:4,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>{l}</div>
+          <input value={e[k]} onChange={ev=>setF(k,ev.target.value)} style={fieldStyle}/>
+        </div>
+      )}
+      <div style={{gridColumn:"1/-1",display:"flex",alignItems:"center",gap:8}}>
+        <input type="checkbox" id="hm2" checked={e.heatMoldable} onChange={ev=>setF("heatMoldable",ev.target.checked)} style={{accentColor:C.amber,width:16,height:16}}/>
+        <label htmlFor="hm2" style={{fontSize:13,color:C.mut,cursor:"pointer"}}>Thermoverformbar</label>
+      </div>
+    </div>
+
+    <div style={{fontSize:11,color:C.mut,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Größentabelle <span style={{color:C.dim,fontWeight:400,textTransform:"none",letterSpacing:"normal"}}>(L = Länge mm, B = Breite mm)</span></div>
+    <div style={{overflowX:"auto",marginBottom:8}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead>
+          <tr>{["EU","L min","L max","B min","B max",""].map(h=><th key={h} style={{padding:"5px 6px",textAlign:"left",color:C.dim,borderBottom:`1px solid ${C.bord}`,fontWeight:700,fontSize:11}}>{h}</th>)}</tr>
+        </thead>
+        <tbody>
+          {e.sizes.map((sz,i)=><tr key={i}>
+            {[["eu",36],["lMin",52],["lMax",52],["wMin",52],["wMax",52]].map(([k,w])=>
+              <td key={k} style={{padding:"3px 4px"}}>
+                <input value={sz[k]??""} onChange={ev=>setS(i,k,ev.target.value)} style={{...cellStyle,width:w}}/>
+              </td>
+            )}
+            <td style={{padding:"3px 4px"}}>
+              <button onClick={()=>delRow(i)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:15,padding:"3px 7px"}}>✕</button>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    <button onClick={addRow} style={{padding:"6px 14px",background:"none",border:`1px dashed ${C.bord}`,borderRadius:6,color:C.mut,cursor:"pointer",fontSize:12,width:"100%",marginBottom:14}}>+ Zeile hinzufügen</button>
+
+    <div style={{display:"flex",gap:8}}>
+      <button onClick={()=>valid&&onSave(e)} style={{flex:1,padding:"11px",background:valid?C.amber:"#334155",color:valid?"#000":C.mut,border:"none",borderRadius:8,cursor:valid?"pointer":"not-allowed",fontWeight:800,fontSize:13}}>Speichern</button>
+      <button onClick={onCancel} style={{padding:"11px 18px",background:"none",border:`1px solid ${C.bord}`,color:C.mut,borderRadius:8,cursor:"pointer",fontSize:13}}>Abbrechen</button>
+    </div>
+  </div>;
+}
+
+function DatabaseView({db,setDb}){
+  const [adding,setAdding]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [search,setSearch]=useState("");
+  const nextId=useRef(Math.max(0,...db.map(e=>e.id))+1);
+  const fileRef=useRef();
+
+  const save=entry=>{
+    if(editId!=null){setDb(db.map(e=>e.id===editId?{...entry,id:editId}:e));setEditId(null);}
+    else{setDb([...db,{...entry,id:nextId.current++}]);setAdding(false);}
+  };
+
+  const del=id=>{if(window.confirm("Eintrag wirklich löschen?"))setDb(db.filter(e=>e.id!==id));};
+
+  const exportDB=()=>{
+    const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="solefit-datenbank.json";a.click();
+  };
+
+  const importDB=ev=>{
+    const file=ev.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=e=>{try{const d=JSON.parse(e.target.result);if(Array.isArray(d)){setDb(d);nextId.current=Math.max(0,...d.map(x=>x.id))+1;alert(d.length+" Einträge importiert.");}else alert("Ungültiges Format.");}catch(_e){alert("JSON-Fehler.");}};
+    reader.readAsText(file);ev.target.value="";
+  };
+
+  const resetDB=()=>{if(window.confirm("Datenbank auf Standard zurücksetzen?"))setDb(DEFAULT_DB);};
+
+  const filtered=search?db.filter(e=>(e.brand+" "+e.model+" "+e.widthLabel).toLowerCase().includes(search.toLowerCase())):db;
+
+  return <div style={{padding:24}}>
+    <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+      <button onClick={()=>setAdding(true)} disabled={adding} style={{padding:"9px 16px",background:"none",border:`1px solid ${C.amber}`,color:C.amber,borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13,opacity:adding?0.4:1}}>+ Hinzufügen</button>
+      <button onClick={exportDB} style={{padding:"9px 16px",background:"none",border:`1px solid ${C.bord}`,color:C.mut,borderRadius:8,cursor:"pointer",fontSize:13}}>↓ Export JSON</button>
+      <button onClick={()=>fileRef.current.click()} style={{padding:"9px 16px",background:"none",border:`1px solid ${C.bord}`,color:C.mut,borderRadius:8,cursor:"pointer",fontSize:13}}>↑ Import JSON</button>
+      <input ref={fileRef} type="file" accept=".json" onChange={importDB}/>
+      <button onClick={resetDB} style={{padding:"9px 16px",background:"none",border:`1px solid #4a1a1a`,color:C.red,borderRadius:8,cursor:"pointer",fontSize:13,marginLeft:"auto"}}>Reset</button>
+    </div>
+
+    <div style={{marginBottom:16}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Marke oder Modell suchen…"
+        style={{width:"100%",background:C.s2,border:`1px solid ${C.bord}`,borderRadius:8,padding:"10px 14px",color:C.txt,fontSize:14,outline:"none",fontFamily:"inherit"}}/>
+    </div>
+
+    {adding&&<EntryForm entry={EMPTY_ENTRY} onSave={save} onCancel={()=>setAdding(false)}/>}
+
+    {filtered.map(e=><div key={e.id}>
+      {editId===e.id?<EntryForm entry={e} onSave={save} onCancel={()=>setEditId(null)}/>:
+      <div style={{background:C.s1,borderRadius:10,border:`1px solid ${C.bord}`,marginBottom:8,padding:"13px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:200}}>
+          <div style={{fontWeight:700,marginBottom:3}}>{e.brand} <span style={{color:C.mut,fontWeight:400}}>{e.model}</span> <span style={{fontSize:12,color:C.dim}}>– {e.widthLabel}</span></div>
+          <div style={{fontSize:11,color:C.dim,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <span>{e.sizes.length} Größen (EU {e.sizes[0]?.eu}–{e.sizes[e.sizes.length-1]?.eu})</span>
+            {e.heatMoldable&&<Pill bg={C.greenBg} col={C.green}>Thermo</Pill>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={()=>setEditId(e.id)} style={{padding:"6px 12px",background:"none",border:`1px solid ${C.bord}`,color:C.mut,borderRadius:6,cursor:"pointer",fontSize:12}}>Bearbeiten</button>
+          <button onClick={()=>del(e.id)} style={{padding:"6px 12px",background:"none",border:`1px solid #4a1a1a`,color:C.red,borderRadius:6,cursor:"pointer",fontSize:12}}>Löschen</button>
+        </div>
+      </div>}
+    </div>)}
+
+    <div style={{marginTop:8,fontSize:11,color:C.dim,textAlign:"center"}}>{db.length} Einträge gesamt</div>
+  </div>;
+}
+
+/* ── Haupt-App ───────────────────────────────────────── */
+const LS_DB="solefit_db_v2";
+const LS_M="solefit_m_v1";
+
+function App(){
+  const [tab,setTab]=useState(0);
+  const [m,setM]=useState(()=>{try{return JSON.parse(localStorage.getItem(LS_M))||{footLength:"",footWidth:"",archLength:"",instep:"",heel:""};}catch(_e){return{footLength:"",footWidth:"",archLength:"",instep:"",heel:""};}});
+  const [db,setDb]=useState(()=>{try{const d=JSON.parse(localStorage.getItem(LS_DB));return Array.isArray(d)&&d.length>0?d:DEFAULT_DB;}catch(_e){return DEFAULT_DB;}});
+
+  // localStorage-Sync
+  useEffect(()=>{try{localStorage.setItem(LS_DB,JSON.stringify(db));}catch(_e){}},[db]);
+  useEffect(()=>{try{localStorage.setItem(LS_M,JSON.stringify(m));}catch(_e){}},[m]);
+
+  const matches=useMemo(()=>findMatches(db,m),[db,m]);
+  const allBrands=useMemo(()=>[...new Set(matches.map(r=>r.entry.brand))],[matches]);
+  const hasM=!!m.footLength;
+  const tabs=["Messen","Ergebnisse"+(hasM&&matches.length>0?` (${matches.length})`:""),"Anleitung","Datenbank"];
+
+  return <div style={{display:"flex",flexDirection:"column",height:"100%",background:C.bg,color:C.txt}}>
+    {/* Header */}
+    <div style={{padding:"18px 24px 0",borderBottom:`1px solid ${C.bord}`,flexShrink:0}} className="no-print">
+      <div style={{display:"flex",alignItems:"baseline",gap:12,marginBottom:14}}>
+        <div>
+          <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.22em",color:C.amber,textTransform:"uppercase",marginBottom:2}}>Rennrad</div>
+          <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.02em",lineHeight:1}}>SoleFit</div>
+        </div>
+        <div style={{fontSize:12,color:C.dim,borderLeft:`1px solid ${C.bord}`,paddingLeft:12,lineHeight:1.5}}>Schuhgrößen-Datenbank<br/>& Passform-Finder</div>
+      </div>
+      <div style={{display:"flex",gap:0,overflowX:"auto"}}>
+        {tabs.map((l,i)=><button key={i} onClick={()=>setTab(i)}
+          style={{padding:"9px 18px",border:"none",background:"none",color:tab===i?C.amber:C.mut,borderBottom:`2px solid ${tab===i?C.amber:"transparent"}`,cursor:"pointer",fontSize:13,fontWeight:tab===i?700:400,letterSpacing:"0.02em",transition:"color 0.15s",whiteSpace:"nowrap",flexShrink:0}}>
+          {l}
+        </button>)}
+      </div>
+    </div>
+
+    {/* Content */}
+    <div style={{flex:1,overflowY:"auto"}}>
+      {tab===0&&<MeasureView m={m} setM={setM} onSearch={()=>setTab(1)}/>}
+      {tab===1&&<ResultsView matches={matches} m={m} allBrands={allBrands} onBack={()=>setTab(0)}/>}
+      {tab===2&&<GuideView/>}
+      {tab===3&&<DatabaseView db={db} setDb={setDb}/>}
+    </div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
